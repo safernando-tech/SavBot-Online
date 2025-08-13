@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SavBot Chat 💬</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons (Microphone, etc.) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Custom styles for the Inter font */
+        body {
+            font-family: "Inter", sans-serif;
+        }
+        /* Basic scrollbar styling for messages container */
+        .messages-container {
+            max-height: 400px; /* Limit height for scroll */
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px; /* Space between messages */
+            padding-right: 8px; /* Give space for scrollbar */
+        }
+        /* Custom scrollbar styles */
+        .messages-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .messages-container::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 10px;
+        }
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+            cursor: pointer;
+        }
+        .speech-active {
+            animation: pulse-microphone 1s infinite alternate;
+        }
+        @keyframes pulse-microphone {
+            from { transform: scale(1); opacity: 1; }
+            to { transform: scale(1.1); opacity: 0.8; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-purple-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl p-6 md:p-8 w-full max-w-lg space-y-6 border border-blue-200">
+        <h1 class="text-3xl font-extrabold text-center text-blue-800 tracking-tight mb-4">
+            SavBot 💬
+        </h1>
+
+        <!-- Messages Display Area -->
+        <div id="messages-container" class="messages-container bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <!-- Initial welcome message -->
+            <div class="text-gray-600 text-center py-2">
+                Welcome to SavBot! Ask me anything. To generate an image, please press "Generate Image! 🎨" and type what you want on the new page: <a href="https://www.craiyon.com/en" target="_blank" class="text-blue-500 hover:underline">https://www.craiyon.com/en</a>
+            </div>
+        </div>
+
+        <!-- Input Section -->
+        <div class="flex flex-col space-y-3">
+            <div class="flex space-x-3">
+                <input
+                    type="text"
+                    id="user-input"
+                    placeholder="Message SavBot or tell me what image you want..."
+                    class="flex-grow p-3 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 text-gray-800"
+                >
+                <!-- Microphone Button -->
+                <button
+                    id="mic-button"
+                    class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 flex items-center justify-center"
+                    aria-label="Speak your message"
+                >
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button
+                    id="send-button"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    Send
+                </button>
+            </div>
+            <!-- Quick Command Buttons & NEW Image Button -->
+            <div class="grid grid-cols-2 gap-2 md:grid-cols-3">
+                <button
+                    id="joke-button"
+                    class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                >
+                    Tell a Joke!
+                </button>
+                <button
+                    id="fact-button"
+                    class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                >
+                    Fun Fact!
+                </button>
+                 <button
+                    id="generate-image-button"
+                    class="col-span-2 md:col-span-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                >
+                    Generate Image! 🎨
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator - still needed for text chat -->
+        <div id="loading-indicator" class="hidden text-center mt-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="text-blue-600 mt-2 text-sm">SavBot is thinking...</p>
+        </div>
+    </div>
+
+    <script>
+        // Get references to HTML elements
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const messagesContainer = document.getElementById('messages-container');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const micButton = document.getElementById('mic-button');
+        const jokeButton = document.getElementById('joke-button');
+        const factButton = document.getElementById('fact-button');
+        const generateImageButton = document.getElementById('generate-image-button');
+
+        const SAVBOT_TEXT_SERVER_URL = 'http://127.0.0.1:5000/generate-response';
+
+        // Array to store chat history for "memory"
+        let chatHistory = [];
+
+        // Web Speech API setup for Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false; // Stop after one utterance
+            recognition.interimResults = false; // Only return final results
+            recognition.lang = 'en-US'; // Set language
+
+            recognition.onstart = () => {
+                micButton.classList.add('speech-active');
+                userInput.placeholder = "Listening...";
+                userInput.disabled = true; // Disable input while listening
+                sendButton.disabled = true;
+                jokeButton.disabled = true;
+                factButton.disabled = true;
+                generateImageButton.disabled = true;
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript; // Put recognized text into input
+                sendMessage(); // Send the message automatically
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                userInput.placeholder = "Error listening. Try again.";
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                jokeButton.disabled = false;
+                factButton.disabled = false;
+                generateImageButton.disabled = false;
+                appendMessage('ai', 'SavBot: Speech recognition error. Make sure your microphone is connected and allowed. Try typing instead.');
+            };
+
+            recognition.onend = () => {
+                micButton.classList.remove('speech-active');
+                userInput.placeholder = "Message SavBot or tell me what image you want...";
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                jokeButton.disabled = false;
+                factButton.disabled = false;
+                generateImageButton.disabled = false;
+            };
+        } else {
+            micButton.disabled = true;
+            micButton.textContent = 'Mic Not Supported';
+            console.warn('Web Speech API (Speech Recognition) not supported in this browser.');
+        }
+
+        // Web Speech API setup for Text-to-Speech
+        const speechSynthesis = window.speechSynthesis;
+        let savBotVoice = null;
+
+        function setSavBotVoice() {
+            if (speechSynthesis.getVoices().length === 0) {
+                speechSynthesis.onvoiceschanged = () => {
+                    findAndSetVoice();
+                };
+            } else {
+                findAndSetVoice();
+            }
+        }
+
+        function findAndSetVoice() {
+            const voices = speechSynthesis.getVoices();
+            savBotVoice = voices.find(voice => voice.lang === 'en-US' && (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Alex')));
+            if (!savBotVoice) {
+                savBotVoice = voices.find(voice => voice.lang === 'en-US');
+            }
+            if (!savBotVoice) {
+                console.warn("No English voice found. Using default voice.");
+            }
+        }
+
+        // Function to create and append a message to the chat log (only text now)
+        function appendMessage(sender, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('flex');
+
+            const contentBubble = document.createElement('div');
+            contentBubble.classList.add('px-4', 'py-2', 'rounded-xl', 'max-w-[75%]', 'break-words', 'shadow-sm');
+            contentBubble.textContent = content;
+
+            if (sender === 'user') {
+                messageDiv.classList.add('justify-end');
+                contentBubble.classList.add('bg-blue-500', 'text-white', 'rounded-br-none');
+            } else { // sender === 'ai'
+                messageDiv.classList.add('justify-start');
+                contentBubble.classList.add('bg-gray-200', 'text-gray-800', 'rounded-bl-none');
+                // Speak the AI's response
+                if (speechSynthesis && content) {
+                    const utterance = new SpeechSynthesisUtterance(content);
+                    if (savBotVoice) {
+                        utterance.voice = savBotVoice;
+                    }
+                    utterance.pitch = 1;
+                    utterance.rate = 1;
+                    speechSynthesis.speak(utterance);
+                }
+            }
+            messageDiv.appendChild(contentBubble);
+            messagesContainer.appendChild(messageDiv);
+
+            // Scroll to the bottom of the chat
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Function to send text message to the Python backend
+        async function sendMessage(presetCommand = null) {
+            let prompt;
+            if (presetCommand) {
+                prompt = presetCommand;
+            } else {
+                prompt = userInput.value.trim();
+            }
+
+            if (!prompt) {
+                return;
+            }
+
+            // Add user message to chat history (or a representation of the command)
+            if (!presetCommand) {
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                appendMessage('user', prompt);
+                userInput.value = '';
+            } else {
+                // For preset commands, visually show what the command is
+                appendMessage('user', `[${prompt}]`); // Changed to 'prompt' as presetCommand is already 'prompt'
+            }
+
+
+            // Show loading indicator
+            loadingIndicator.classList.remove('hidden');
+            sendButton.disabled = true;
+            micButton.disabled = true;
+            jokeButton.disabled = true;
+            factButton.disabled = true;
+            generateImageButton.disabled = true;
+            userInput.disabled = true;
+
+            try {
+                const response = await fetch(SAVBOT_TEXT_SERVER_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    // Send the full chat history if not a preset, otherwise send just the preset command in a new history
+                    body: JSON.stringify({ chat_history: presetCommand ? [{ role: "user", parts: [{ text: prompt }] }] : chatHistory })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const aiResponseText = data.response;
+
+                chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
+                appendMessage('ai', aiResponseText);
+
+            } catch (error) {
+                console.error('Error fetching AI response:', error);
+                const errorMessage = 'Oops! SavBot lost connection or encountered an error. Please try again or restart the server.';
+                appendMessage('ai', errorMessage);
+                chatHistory.push({ role: "model", parts: [{ text: errorMessage }] });
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                sendButton.disabled = false;
+                micButton.disabled = false;
+                jokeButton.disabled = false;
+                factButton.disabled = false;
+                generateImageButton.disabled = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // Function to open external image generation website
+        function openImageGenerator() {
+            const imagePrompt = userInput.value.trim();
+            let url = "https://www.craiyon.com/";
+
+            if (imagePrompt) {
+                url += `?q=${encodeURIComponent(imagePrompt)}`;
+                appendMessage('user', `Opening image generator with: "${imagePrompt}"`);
+            } else {
+                appendMessage('user', 'Opening image generator without a specific prompt.');
+            }
+            userInput.value = '';
+
+            window.open(url, '_blank');
+        }
+
+
+        // Add event listeners
+        sendButton.addEventListener('click', () => sendMessage());
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        if (micButton) {
+            micButton.addEventListener('click', () => {
+                if (recognition) {
+                    recognition.start();
+                } else {
+                    appendMessage('ai', "SavBot: Speech recognition not supported or not initialized on your browser.");
+                }
+            });
+        }
+        jokeButton.addEventListener('click', () => sendMessage("tell me a joke"));
+        factButton.addEventListener('click', () => sendMessage("give me a fun fact"));
+        generateImageButton.addEventListener('click', openImageGenerator);
+
+        // Focus the input and initialize voice when the page loads
+        window.addEventListener('load', () => {
+            userInput.focus();
+            setSavBotVoice();
+        });
+    </script>
+</body>
+</html>
