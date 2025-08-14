@@ -56,6 +56,11 @@ async def get_ai_response_from_api(chat_history):
             return "An unexpected error occurred while processing your text request."
     return "Something went wrong and I couldn't get a text response."
 
+# New: Define a root route for the main URL
+@app.route('/', methods=['GET'])
+def home():
+    return "SavBot Backend is running! Access the chat interface via your index.html file."
+
 # Define a route for handling text responses
 @app.route('/generate-response', methods=['POST'])
 async def handle_generate_response():
@@ -102,4 +107,3 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000)) # Get port from environment, or use 5000 as default
     print(f"SavBot Backend Server running on http://0.0.0.0:{port}/")
     app.run(host='0.0.0.0', port=port, debug=True)
-
