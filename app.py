@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
 import requests # We need this to make HTTP requests to the AI API
+import os # New import for environment variables
 
 # Create a Flask web application instance
 app = Flask(__name__)
@@ -13,7 +14,7 @@ CORS(app)
 # Your API Key for the powerful AI model.
 # PASTE YOUR REAL API KEY HERE, BETWEEN THE QUOTES!
 # Example: API_KEY = "YOUR_SUPER_SECRET_API_KEY_GOES_HERE"
-API_KEY = "AIzaSyA46deUiX0csGGgToIEZstdz9RNN8kNmME" # Replace "" with your actual API key.
+API_KEY = "" # Replace "" with your actual API key.
 
 # URL for the Gemini API (using a specific version suitable for text generation)
 GEMINI_TEXT_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={API_KEY}"
@@ -77,7 +78,6 @@ async def handle_generate_response():
         response_text = "My name is Savbot."
     elif user_prompt == "who made you":
         response_text = "I was made by Savitha .F and Gemini."
-    # The conditions for joke and fun fact are below:
     elif "joke" in user_prompt or user_prompt == "tell me a joke":
         response_text = "Why don't scientists trust atoms? Because they make up everything! 😂"
     elif "fun fact" in user_prompt or user_prompt == "give me a fun fact":
@@ -97,7 +97,9 @@ async def handle_generate_response():
 
 # Run the Flask application
 if __name__ == '__main__':
-    # You will need to install 'requests' and Flask with the 'async' extra:
-    # pip3 install Flask Flask-CORS requests "Flask[async]"
-    print("SavBot Backend Server running at http://127.0.0.1:5000/")
-    app.run(debug=True)
+    # Render (and other hosting platforms) will provide a PORT environment variable.
+    # We need to tell Flask to listen on that port and on all available network interfaces (0.0.0.0).
+    port = int(os.environ.get("PORT", 5000)) # Get port from environment, or use 5000 as default
+    print(f"SavBot Backend Server running on http://0.0.0.0:{port}/")
+    app.run(host='0.0.0.0', port=port, debug=True)
+
